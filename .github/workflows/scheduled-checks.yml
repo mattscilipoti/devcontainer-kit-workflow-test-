@@ -43,25 +43,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Scan devcontainer config and repository files
+        id: scan_fs
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scanners: vuln,misconfig,secret
           severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
           format: sarif
           output: trivy-fs.sarif
       - name: Scan the base image
         run: |
           base="$(grep -m1 '^FROM ' .devcontainer/Dockerfile | cut -d' ' -f2)"
           echo "BASE_IMAGE=$base" >> "$GITHUB_ENV"
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - id: scan_image
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.BASE_IMAGE }}
           severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
           ignore-unfixed: true
           format: sarif
           output: trivy-image.sarif
-      - uses: github/codeql-action/upload-sarif@v3
-        if: always()
+      - name: Upload repository scan
+        uses: github/codeql-action/upload-sarif@v4
+        if: always() && steps.scan_fs.outcome == 'success'
         with:
-          sarif_file: .
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+      - name: Upload base image scan
+        uses: github/codeql-action/upload-sarif@v4
+        if: always() && steps.scan_image.outcome == 'success'
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
