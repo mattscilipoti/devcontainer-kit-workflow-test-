@@ -21,7 +21,9 @@ jobs:
       - name: Compare pinned versions with the newest supported
         id: check
         continue-on-error: true
-        run: bash .devcontainer/check-versions.sh | tee report.txt
+        run: |
+          set -o pipefail
+          bash .devcontainer/check-versions.sh | tee report.txt
       - name: Open or update an issue when behind
         if: steps.check.outcome == 'failure'
         env:
@@ -41,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Scan devcontainer config and repository files
-        uses: aquasecurity/trivy-action@v0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scanners: vuln,misconfig,secret
@@ -52,7 +54,7 @@ jobs:
         run: |
           base="$(grep -m1 '^FROM ' .devcontainer/Dockerfile | cut -d' ' -f2)"
           echo "BASE_IMAGE=$base" >> "$GITHUB_ENV"
-      - uses: aquasecurity/trivy-action@v0.28.0
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.BASE_IMAGE }}
           severity: HIGH,CRITICAL
