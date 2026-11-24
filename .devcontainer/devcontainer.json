@@ -1,0 +1,51 @@
+{
+  "name": "workflow-test",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "initializeCommand": "bash .devcontainer/create-host-claude-folders.sh",
+  "mounts": [
+    "source=${localEnv:HOME}/.claude-devcontainers/workflow-test,target=/home/vscode/.claude,type=bind",
+    "source=${localEnv:HOME}/.claude-devcontainers/shared,target=/home/vscode/.claude-shared,type=bind,readonly"
+  ],
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "username": "vscode",
+      "uid": "1000",
+      "gid": "1000"
+    },
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.27.4"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "26"
+    }
+  },
+  "remoteUser": "vscode",
+  "forwardPorts": [
+    3000,
+    8000
+  ],
+  "postCreateCommand": {
+    "link shared claude rules": "bash .devcontainer/link-shared-claude-rules.sh",
+    "check dependencies": "bash .devcontainer/check-dependencies.sh",
+    "go modules": "[ ! -f go.mod ] || go mod download",
+    "bundle": "[ ! -f Gemfile ] || bundle install",
+    "npm": "if [ -f package-lock.json ]; then npm ci; elif [ -f package.json ]; then npm install; fi"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "Shopify.ruby-lsp",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "Anthropic.claude-code"
+      ]
+    }
+  }
+}

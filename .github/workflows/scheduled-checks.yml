@@ -1,0 +1,65 @@
+# Weekly, with no AI usage: are the pinned language versions behind, and do the
+# devcontainer's base images or config have known vulnerabilities? Dependabot
+# (.github/dependabot.yml) separately opens PRs for Features, gems, npm, Go
+# modules, and Actions. Results show up as an issue and in the Security tab.
+name: Scheduled checks
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  security-events: write
+
+jobs:
+  versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare pinned versions with the newest supported
+        id: check
+        continue-on-error: true
+        run: bash .devcontainer/check-versions.sh | tee report.txt
+      - name: Open or update an issue when behind
+        if: steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing="$(gh issue list --label devcontainer-versions --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file report.txt
+          else
+            gh label create devcontainer-versions --color BFD4F2 2>/dev/null || true
+            gh issue create --label devcontainer-versions \
+              --title "Devcontainer language versions are behind" --body-file report.txt
+          fi
+
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan devcontainer config and repository files
+        uses: aquasecurity/trivy-action@v0.28.0
+        with:
+          scan-type: fs
+          scanners: vuln,misconfig,secret
+          severity: HIGH,CRITICAL
+          format: sarif
+          output: trivy-fs.sarif
+      - name: Scan the base image
+        run: |
+          base="$(grep -m1 '^FROM ' .devcontainer/Dockerfile | cut -d' ' -f2)"
+          echo "BASE_IMAGE=$base" >> "$GITHUB_ENV"
+      - uses: aquasecurity/trivy-action@v0.28.0
+        with:
+          image-ref: ${{ env.BASE_IMAGE }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-image.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: .
